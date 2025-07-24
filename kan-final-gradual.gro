@@ -1,0 +1,333 @@
+include gro
+
+//Configuracion del ambiente
+set ("dt", 0.1);
+set ("population_max", 7000);
+
+
+//Configuracion de Señales
+set ("signals", 1.0);
+set ("signals_draw", 1.0);
+grid("continuous", "gro_original", 10, 10, 8);
+
+tf_signal := s_signal([kdiff := 0.5, kdeg := 0.5]);
+tf_signal_gradual := s_signal([kdiff := 0.8, kdeg := 0.05]);
+
+m1_signal := s_signal([kdiff := 0.5, kdeg := 0.05]);
+kill_signal := s_signal([kdiff := 0.5, kdeg := 0.05]);
+stability_signal := s_signal([kdiff := 0.5, kdeg := 0.3]);
+
+
+
+t := 0;
+countdown:= 800;
+
+
+
+//Estados Posibles
+genes([		name := "base_state",
+			proteins := {"gene_m1_medium", "gene_base"},
+			promoter := [function := "AND",
+			transcription_factors := {"gene_tf", "gene_productor"},
+			noise := [toOff := 0, toOn := 0, noise_time:= 0]],
+			prot_act_times := [times := {2,2}, variabilities := {1,1}],
+			prot_deg_times := [times := {0.1,0.1}, variabilities := {0.0,0}]]);
+
+genes([		name := "high_state",
+			proteins := {"gene_m1_medium", "gene_m1_low", "gene_high"},
+			promoter := [function := "AND",
+			transcription_factors := {"gene_tf", "gene_productor"},
+			noise := [toOff := 0, toOn := 0, noise_time:= 0]],
+			prot_act_times := [times := {2,2,2}, variabilities := {1,1,1}],
+			prot_deg_times := [times := {0.1, 0.1,0.1}, variabilities := {0.0, 0.0,0}]]);
+
+
+genes([		name := "low_state",
+			proteins := {"gene_m1_low", "gene_low"},
+			promoter := [function := "AND",
+			transcription_factors := {"gene_tf", "gene_productor"},
+			noise := [toOff := 0, toOn := 0, noise_time:= 0]],
+			prot_act_times := [times := {2,2}, variabilities := {1,1}],
+			prot_deg_times := [times := {0.1, 0.1}, variabilities := {0.0, 0.0}]]);
+
+genes([		name := "off_state",
+			proteins := {"gene_off"},
+			promoter := [function := "AND",
+			transcription_factors := {"gene_tf", "gene_productor"},
+			noise := [toOff := 0, toOn := 0, noise_time:= 0]],
+			prot_act_times := [times := {2,2}, variabilities := {1,1}],
+			prot_deg_times := [times := {0.1, 0.1}, variabilities := {0.0, 0.0}]]);
+
+
+
+//Gen que indica que una celula es productora
+
+genes([		name := "productor",
+			proteins := {"gene_productor"},
+			promoter := [function := "NOT",
+			transcription_factors := {"gene_memory"},
+			noise := [toOff := 0, toOn := 0, noise_time:= 0]],
+			prot_act_times := [times := {0,0}, variabilities := {0,0}],
+			prot_deg_times := [times := {0,0}, variabilities := {0.0}]]);
+
+
+//Gen para evitar que las celulas de memoria activen sus funciones
+genes([		name := "deactivator",
+			proteins := {"gene_memory"},
+			promoter := [function := "TRUE",
+			noise := [toOff := 0, toOn := 0, noise_time:= 0]],
+			prot_act_times := [times := {0,0}, variabilities := {0,0}],
+			prot_deg_times := [times := {0,0}, variabilities := {0,0}]]);
+
+
+
+//Genes de relleno para poder utilizar las variables f1h1 y lo
+genes([		name := "hi_detector",
+			proteins := {"gene_hi"},
+			promoter := [function := "YES",
+			transcription_factors := {"hi"},
+			noise := [toOff := 0, toOn := 0, noise_time:= 0]],
+			prot_act_times := [times := {3}, variabilities := {0.5}],
+			prot_deg_times := [times := {0.1}, variabilities := {0.1}]]);
+
+genes([		name := "lo_detector",
+			proteins := {"gene_lo"},
+			promoter := [function := "YES",
+			transcription_factors := {"lo"},
+			noise := [toOff := 0, toOn := 100, noise_time:= 0]],
+			prot_act_times := [times := {3}, variabilities := {0.5}],
+			prot_deg_times := [times := {0.1}, variabilities := {0.1}]]);
+
+
+
+
+//Gen para eliminar el productor constitutivo
+genes([		name := "killer",
+			proteins := {"gene_kill"},
+			promoter := [function := "YES",
+			transcription_factors := {"kill"},
+			noise := [toOff := 0, toOn := 0, noise_time:= 0]],
+			prot_act_times := [times := {0}, variabilities := {0}],
+			prot_deg_times := [times := {0.0}, variabilities := {0.0}]]);
+
+
+
+
+//stability
+genes([		name := "stability_marker",
+			proteins := {"gene_stability"},
+			promoter := [function := "YES",
+			transcription_factors := {"stability"},
+			noise := [toOff := 0, toOn := 0, noise_time:= 0]],
+			prot_act_times := [times := {0}, variabilities := {0}],
+			prot_deg_times := [times := {0.0}, variabilities := {0.0}]]);
+
+//stable gene
+genes([		name := "stability_starter",
+			proteins := {"gene_stability_starter"},
+			promoter := [function := "AND",
+			transcription_factors := {},
+			noise := [toOff := 0, toOn := 20, noise_time:= 0]],
+			prot_act_times := [times := {5}, variabilities := {0}],
+			prot_deg_times := [times := {0.0}, variabilities := {0.0}]]);
+
+//activator
+genes([		name := "tf_activator",
+			proteins := {"gene_tf"},
+			promoter := [function := "OR",
+			transcription_factors := {"tf", "tf_gradual"},
+			noise := [toOff := 0, toOn := 0, noise_time:= 0]],
+			prot_act_times := [times := {0}, variabilities := {0}],
+			prot_deg_times := [times := {0.0}, variabilities := {0.0}]]);
+			
+			
+			
+
+
+
+
+
+//Plasmido que contendra los genes
+
+//Se carga cada gen por separado
+plasmids_genes ([
+	p1 := {"base_state"}, 
+	p2:={"high_state"}, 
+	p3:={"low_state"}, 
+	p4:={"deactivator"}, 
+	p5:={"productor"}, 
+	p6:={ "hi_detector", "lo_detector", "stability_starter" }, 
+	p11:={"stability_marker"}, 
+	p7:={"constitutive_tf_productor", "killer"}, 
+	p8:={"off_state"}, 
+	p9:={"tf_activator"}]);
+
+//--------------Coloracion-------------------------
+//gene_base tiñe verde
+action({"gene_base"},"d_paint",{"1","0","0","0"}); //Coloracion verde
+action({"-gene_base"},"d_paint",{"-1","0","0","0"});
+
+//gene_base tiñe rojo
+action({"gene_high"},"d_paint",{"0","1","0","0"}); //Coloracion verde
+action({"-gene_high"},"d_paint",{"0","-1","0","0"});
+
+//Gdeac tiñe azul
+action({"gene_memory"},"d_paint",{"0","0","0","1"}); //Coloracion cyan
+action({"-gene_memory"},"d_paint",{"0","0","0","-1"});
+//--------------Coloracion-------------------------
+
+
+//--------------Señales-------------------------
+//gene_m1_medium libera m1_signal
+action({"gene_m1_medium"},"s_emit_signal",{tostring(m1_signal),"2","exact"});
+
+//gene_m1_low libera menos m1_signal
+action({"gene_m1_low"},"s_emit_signal",{tostring(m1_signal),"1","exact"});
+
+//gene_stability libera stability_signal
+action({"-gene_hi", "-gene_lo", "-gene_stability", "gene_stability_starter"},"s_emit_signal",{tostring(stability_signal),"0.01","exact"});
+action({},"s_get_QS",{tostring(stability_signal),">","0.15","gene_stability"});//Quorum sensing para tf
+action({"gene_stability"},"lose_plasmid",{"p6"});
+
+
+
+
+
+//Detectar tf_signal
+action({},"s_get_QS",{tostring(tf_signal),">","0.5","tf"});//Quorum sensing para tf
+action({},"s_get_QS",{tostring(tf_signal_gradual),">","0.3","tf_gradual"});//Quorum sensing para tf
+
+
+
+//Detectar m1_signal
+//action({},"s_get_QS",{tostring(m1_signal),">","2","m1"});//Quorum sensing para tf
+
+//Detectar fm1 alto
+action({},"s_get_QS",{tostring(m1_signal),">","90.22","hi"});//Quorum sensing para f1
+
+
+//Detectar f1 bajo
+action({},"s_get_QS",{tostring(m1_signal),"<","80.22","lo"});//Quorum sensing para f1
+
+//Detectar señal para detener entrenamiento
+action({},"s_get_QS",{tostring(kill_signal),">","3","gene_kill"});//Quorum sensing para f1
+
+
+
+//Pasar de base_state a high_state
+action({"gene_lo","gene_base","gene_productor"},"set_eex",{"p1"}); //Se bloquea la conjugacion de p1
+action({"gene_lo","gene_base","gene_productor"},"lose_plasmid",{"p1"}); //Se remueve el plasmido p1
+action({"gene_lo","gene_base","gene_productor"},"remove_eex",{"p2"}); //Se permite la conjugacion de p2
+
+//pasar de high_state a base_state
+action({"gene_hi","gene_high","gene_productor"},"set_eex",{"p2"}); //Se repite lo mismo en cada paso, se bloquea el plasmido a elminar y se permite el traspaso del estado siguiente
+action({"gene_hi","gene_high","gene_productor"},"lose_plasmid",{"p2"});
+action({"gene_hi","gene_high","gene_productor"},"remove_eex",{"p1"});
+
+//pasar de base_state a low_state
+action({"gene_hi","gene_base","gene_productor"},"set_eex",{"p1"});
+action({"gene_hi","gene_base","gene_productor"},"lose_plasmid",{"p1"});
+action({"gene_hi","gene_base","gene_productor"},"remove_eex",{"p3"});
+
+//pasar de low_state a base_state
+action({"gene_lo","gene_low","gene_productor"},"set_eex",{"p3"});
+action({"gene_lo","gene_low","gene_productor"},"lose_plasmid",{"p3"});
+
+action({"gene_lo","gene_low","gene_productor"},"remove_eex",{"p1"});
+
+//pasar de low_state a off_state
+action({"gene_hi","gene_low","gene_productor"},"set_eex",{"p3"});
+action({"gene_hi","gene_low","gene_productor"},"lose_plasmid",{"p3"});
+
+action({"gene_hi","gene_low","gene_productor"},"remove_eex",{"p8"});
+
+//pasar de off_state a low_state
+action({"gene_lo","gene_off","gene_productor"},"set_eex",{"p8"});
+action({"gene_lo","gene_off","gene_productor"},"lose_plasmid",{"p8"});
+
+action({"gene_lo","gene_off","gene_productor"},"remove_eex",{"p3"});
+
+//eliminar productor constitutivo de tf
+
+action({"gene_kill"},"lose_plasmid",{"p6"});
+action({"gene_kill"},"s_emit_signal",{tostring(kill_signal),"1","exact"});
+action({"gene_kill"},"set_eex",{"p8"});
+action({"gene_kill"},"set_eex",{"p1"});
+action({"gene_kill"},"set_eex",{"p2"});
+action({"gene_kill"},"set_eex",{"p3"});
+
+
+
+
+
+
+
+
+action({},"conjugate_directed",{"p1","1000000000"});
+action({},"conjugate_directed",{"p2","1000000000"});
+action({},"conjugate_directed",{"p3","1000000000"});
+action({},"conjugate_directed",{"p8","1000000000"});
+
+
+
+action({},"set_growth_rate",{"0.0000001"});
+
+
+
+
+
+
+
+program p() :=
+{
+  
+	skip();
+};
+
+
+
+program report():=
+
+{
+skip();
+};
+
+
+program main() :=
+{    true:
+
+	  {		
+		t := t + dt;
+		countdown := countdown - dt;
+
+
+	    dump_multiple(ft,{"gene_tf"},{"gene_m1_medium"}, {"gene_m1_low"});
+	
+      }
+
+	  countdown > 100: {
+		s_set_signal(tf_signal, 100000000, 0, 0);//señal kill para desactivar el proceso de entrenamiento y el promotor constitutivo
+
+	  }
+
+	  countdown < 150:{
+		s_set_signal(kill_signal, 100000, 0, 0);//señal kill para desactivar el proceso de entrenamiento y el promotor constitutivo
+	  };
+
+	  countdown < 1:{
+		s_set_signal(tf_signal_gradual, 100, 0, 0);//señal kill para desactivar el proceso de entrenamiento y el promotor constitutivo
+
+	  }
+		
+
+
+
+	c_ecolis(10, 0, 0, 100, {"p1", "p2", "p3", "p4", "p8"}, program p() ); //se cargan todos los plasmidos menos el de feedback en las celulas de memoria
+    c_ecolis(200, 0, 0, 100, {"p1", "p5", "p6", "p7", "p9", "p11"}, program p() + report()); //Se inicia la colonia solo con p1 y p5 (base_state y feedback)
+    c_ecolis(200, 0, 0, 100, {"p2", "p5", "p6", "p7", "p9",  "p11"}, program p() + report()); //Se inicia la colonia solo con p1 y p5 (base_state y feedback)
+    c_ecolis(200, 0, 0, 100, {"p3", "p5", "p6", "p7", "p9",  "p11"}, program p() + report()); //Se inicia la colonia solo con p1 y p5 (base_state y feedback)
+	
+
+
+
+};

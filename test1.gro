@@ -1,0 +1,89 @@
+include gro
+
+// 1) Parámetros generales
+set("dt", 0.1);
+set("population_max", 2000);
+
+// 2) Activar señales y definir grid
+set("signals", 1.0);
+grid("continuous","gro_original",10,10,8);
+
+// 3) Definir señales
+arab := s_signal([kdiff := 0.02, kdeg := 0.005]);
+ahl  := s_signal([kdiff := 0.8,  kdeg := 0.005]);
+
+// —————— Definición de genes ——————
+// … (configuración de señales, grid, etc.)
+
+// 1) SensorA → ProtA
+genes([ name := "GeneA",
+        proteins := {"ProtA"},
+        promoter := [ function := "YES", transcription_factors := {} ],
+        prot_act_times := [ times := {1.0}, variabilities := {0.1} ],
+        prot_deg_times := [ times := {5.0}, variabilities := {0.5} ] ]);
+
+// 2) SensorB → ProtB
+genes([ name := "GeneB",
+        proteins := {"ProtB"},
+        promoter := [ function := "YES", transcription_factors := {} ],
+        prot_act_times := [ times := {1.0}, variabilities := {0.1} ],
+        prot_deg_times := [ times := {5.0}, variabilities := {0.5} ] ]);
+
+// 3) NeuronC: AND(ProtA, ProtB)
+genes([ name := "GeneC",
+        proteins := {"ProtC"},
+        promoter := [ function := "AND", transcription_factors := {"ProtA","ProtB"} ],
+        prot_act_times := [ times := {1.0}, variabilities := {0.1} ],
+        prot_deg_times := [ times := {5.0}, variabilities := {0.5} ] ]);
+
+// 4) NeuronD: ANDNOT(ProtA,ProtB)
+genes([ name := "GeneD",
+        proteins := {"ProtD"},
+        promoter := [ function := "ANDNOT", transcription_factors := {"ProtA","ProtB"} ],
+        prot_act_times := [ times := {1.0}, variabilities := {0.1} ],
+        prot_deg_times := [ times := {5.0}, variabilities := {0.5} ] ]);
+
+// 5) OutputE: OR(ProtC,ProtD)
+genes([ name := "GeneE",
+        proteins := {"ProtE"},
+        promoter := [ function := "OR", transcription_factors := {"ProtC","ProtD"} ],
+        prot_act_times := [ times := {1.0}, variabilities := {0.1} ],
+        prot_deg_times := [ times := {5.0}, variabilities := {0.5} ] ]);
+
+
+// —————— Ensamblaje de plásmidos ——————
+plasmids_genes([ 
+  pInput  := {"GeneA","GeneB"}, 
+  pHidden := {"GeneC","GeneD"}, 
+  pOutput := {"GeneE"} 
+]);
+
+// —————————— Archivo de salida ——————————
+// Defínelo en ámbito global, antes de declarar programas
+t := 0; // tiempo
+route1   := "";  
+filename := "perceptron.csv";
+fp       := fopen(route1 <> filename, "w");
+
+// —————— Programa celular (volcado de datos) ——————
+program cell() := {
+  true : { dump_multiple(fp, {"ProtA","ProtB","ProtC","ProtD","ProtE"}); }
+};
+
+program main() := {
+  fp := fopen("perceptron.csv","w");
+  fprint(fp,"time,ProtA,ProtB,ProtC,ProtD,ProtE\n");
+
+  // Inocular células con los tres plásmidos
+  c_ecolis(200, 0, 0, 100, {"pInput","pHidden","pOutput"}, program cell());
+
+  // Pulsos de señal iniciales
+  true : { set_signal(arab, 200, 0, 0); }  // activa ProtA
+  true : { set_signal(ahl,  30,  0, 0); }  // activa ProtB
+
+  // ——— Aquí añadimos el incremento de tiempo ———
+  true : { t := t + dt; }
+
+  // Detener tras 100 unidades de tiempo
+  t > 100 : { stop(); }
+};

@@ -1,0 +1,86 @@
+include gro
+
+// ——————————————————————————————————————————————————
+// 1) Parámetros globales y módulo de señales (para dibujo)
+// ——————————————————————————————————————————————————
+set ( "dt", 0.1 );
+set ( "population_max", 5000000 );
+
+// activamos solo el dibujo de señales
+set ( "signals",      0.0 );
+set ( "signals_draw", 1.0 );
+
+// señal “dummy” para visualizar ProtE
+// (no se difunde pero la usamos para pintar)
+protEvis := s_signal([ kdiff := 0.0, kdeg := 1.0 ]);
+
+// ——————————————————————————————————————————————————
+// 2) Operones (idénticos a los tuyos)
+// ——————————————————————————————————————————————————
+genes([ name := "GeneA", proteins := {"ProtA"},
+        promoter := [ function := "YES", transcription_factors := {} ],
+        prot_act_times := [ times := {1.0}, variabilities := {0.1} ],
+        prot_deg_times  := [ times := {5.0}, variabilities := {0.5} ] ]);
+
+genes([ name := "GeneC", proteins := {"ProtC"},
+        promoter := [ function := "AND", transcription_factors := {"ProtA"} ],
+        prot_act_times := [ times := {1.0}, variabilities := {0.1} ],
+        prot_deg_times  := [ times := {5.0}, variabilities := {0.5} ] ]);
+
+genes([ name := "GeneE", proteins := {"ProtE"},
+        promoter := [ function := "OR", transcription_factors := {"ProtC"} ],
+        prot_act_times := [ times := {1.0}, variabilities := {0.1} ],
+        prot_deg_times  := [ times := {5.0}, variabilities := {0.5} ] ]);
+
+// ——————————————————————————————————————————————————
+// 3) Plásmidos
+// ——————————————————————————————————————————————————
+plasmids_genes([ pSimple := {"GeneA","GeneC","GeneE"} ]);
+
+// ——————————————————————————————————————————————————
+// 4) Pintado con action()
+// ——————————————————————————————————————————————————
+// Cada vez que ProtE supere 50, pintamos la célula de amarillo
+action(
+  {"ProtE"},
+  "paint",
+  { "255","255","0","50" }
+);
+
+// ——————————————————————————————————————————————————
+// 5) Variables globales y CSV
+// ——————————————————————————————————————————————————
+t        := 0;
+nextDump := 0.0;
+dumpStep := 2.0;
+fp       := fopen( "light.csv", "w" );
+fprint( fp, "time,ProtA,ProtC,ProtE\n" );
+
+// ——————————————————————————————————————————————————
+// 6) Programa celular: volcado cada dumpStep
+// ——————————————————————————————————————————————————
+program cell() := {
+  t >= nextDump :
+  {
+    dump_multiple( fp, {"ProtA","ProtC","ProtE"} );
+    nextDump := nextDump + dumpStep;
+  }
+};
+
+// ——————————————————————————————————————————————————
+// 7) Programa principal
+// ——————————————————————————————————————————————————
+program main() := {
+  t = 0 :
+  {
+    c_ecolis( 50, 0, 0, 100, {"pSimple"}, program cell() );
+  }
+  true :
+  {
+    t := t + dt;
+  }
+  t > 5000 :
+  {
+    stop();
+  }
+};

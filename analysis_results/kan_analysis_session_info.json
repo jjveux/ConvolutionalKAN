@@ -1,0 +1,39 @@
+{
+  "fecha_analisis": "2025-07-03 20:55:46",
+  "num_muestras": 1103,
+  "columnas_analizadas": [
+    "time",
+    "yellow_output",
+    "green_output",
+    "phlf",
+    "qacr",
+    "iptg",
+    "atc",
+    "f_phlf",
+    "f_qacr",
+    "f_iptg",
+    "f_atc",
+    "total",
+    "cluster",
+    "iptg_atc_combined"
+  ],
+  "num_clusters": 2,
+  "platform": "VS Code Jupyter",
+  "archivos_generados": [
+    "analysis_results\\kan_analysis_metrics.csv",
+    "analysis_results\\kan_analysis_conclusions.txt",
+    "analysis_results\\kan_analysis_processed_data.csv",
+    "analysis_results\\kan_analysis_cluster_info.csv"
+  ],
+  "metricas_disponibles": [
+    "yellow_output_response_time",
+    "green_output_response_time",
+    "yellow_output_max_intensity",
+    "green_output_max_intensity",
+    "yellow_output_stability_cv",
+    "green_output_stability_cv",
+    "conversion_efficiency"
+  ],
+  "tiene_clustering": true,
+  "tiene_conclusiones": true
+}

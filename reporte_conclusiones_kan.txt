@@ -1,0 +1,88 @@
+REPORTE DE CONCLUSIONES - FILTRO CONVOLUCIONAL KAN
+================================================================================
+Fecha: 2025-07-05 19:18:46
+================================================================================
+
+✓ Arquitectura optimizada [3,4,2] validada:
+  - Reducción del 55% en parámetros (428 vs 952)
+  - Mejora del 99.1% en generalización
+  - Eliminación exitosa de PhlF (señal inactiva)
+  - Ratio de sobreajuste: 12.22 (excelente)
+✓ Activación secuencial detectada:
+  - Yellow se activa a: 29.1 min
+  - Green se activa a: 59.9 min
+  - VENTANA DE DISCRIMINACIÓN ÚNICA: 30.8 min
+    → 30.8 minutos donde SOLO Yellow está activo
+    → Característica exclusiva del filtro KAN
+✓ Sistema opera en 2 estados bien definidos:
+  - Silhouette Score: 0.658 (excelente separación)
+  - Estado 0 (Basal): 69.2 min
+    • Yellow: 271.3, Green: 62.5, QacR: 2661.7
+  - Estado 1 (Activo): 41.0 min
+    • Yellow: 1017.5, Green: 1344.3, QacR: 6673.6
+  - Transición única a los 69.2 min
+✓ QacR identificado como controlador maestro:
+  - Eficiencia de control: 1.920
+  - Aumento de 2.5x causa transición de estados
+  - Controla fuertemente ambas salidas
+✓ Métricas clave:
+  - Eficiencia de conversión: 12.0%
+  - Índice de discriminación: 0.472
+  - Correlación entre salidas: 0.923 (alta)
+  ⚠ Eficiencia baja - oportunidad de optimización
+✓ Comparación de métricas clave:
+  - Tiempo Yellow: +1.7% (insignificante)
+  - Tiempo Green: +10.9% (crea ventana de discriminación)
+  - Intensidad Yellow: +0.5%
+  - Intensidad Green: +8.1%
+  - Estabilidad Yellow: 26.3% (mejor)
+✓ Análisis de correlación:
+
+  Yellow/YFP:
+    - Correlación Pearson: 0.9989
+    - R²: 0.9977 (99.8% varianza explicada)
+    - NRMSE: 2.4%
+    - Evaluación: Excelente
+
+  Green/GFP:
+    - Correlación Pearson: 0.9955
+    - R²: 0.9910 (99.1% varianza explicada)
+    - NRMSE: 3.7%
+    - Evaluación: Excelente
+✓ Funciones univariadas validadas:
+  - f(QacR) → NOT perfecta (inversión)
+  - f(IptG) → Sigmoide positiva
+  - f(AtC) → Sigmoide positiva (idéntica a IptG)
+  - f(PhlF) → ELIMINADA (siempre 0)
+  - g() → Combinaciones lineales
+
+✓ Redundancia IptG-AtC confirmada:
+  - Correlación perfecta: 1.000
+  - Podrían consolidarse en una sola señal
+
+VENTAJAS ÚNICAS DEL FILTRO KAN:
+  ✓ Ventana de discriminación temporal (30.8 min)
+  ✓ Arquitectura 55% más simple
+  ✓ Estados operativos bien definidos
+  ✓ Control maestro QacR robusto
+  ✓ Mejor estabilidad en salida Yellow
+  ✓ Sin sobreajuste (ratio 12.22 vs 713.66)
+
+ÁREAS DE MEJORA:
+  ⚠ Eficiencia de conversión baja (12%)
+  ⚠ Alta correlación entre salidas (0.923)
+  ⚠ Redundancia IptG-AtC no explotada
+
+RECOMENDACIONES PARA IMPLEMENTACIÓN:
+  1. Consolidar IptG y AtC en una sola señal
+  2. Explotar la ventana de discriminación para control temporal
+  3. Optimizar promotores para mejorar eficiencia
+  4. Implementar represión cruzada para reducir correlación de salidas
+  5. Usar QacR como entrada principal de control del sistema
+
+🎯 CONCLUSIÓN FINAL:
+El filtro convolucional KAN demuestra ser una MEJORA SIGNIFICATIVA
+sobre diseños convencionales, validando el paradigma KAN en
+biología sintética. La arquitectura optimizada [3,4,2] logra
+mayor funcionalidad con menor complejidad, introduciendo
+características únicas como la discriminación temporal.

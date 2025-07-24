@@ -1,0 +1,6 @@
+Criterio,"Original [4,8,2]","Optimizado [3,4,2]",Ganador
+Complejidad,Alta (952 params),Baja (428 params),✓ Optimizado
+Precisión,Sobreajustada,Excelente,✓ Optimizado
+Robustez,Baja,Alta,✓ Optimizado
+Interpretabilidad,Difícil,Clara,✓ Optimizado
+Escalabilidad,Limitada,Buena,✓ Optimizado

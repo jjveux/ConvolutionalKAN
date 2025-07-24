@@ -1,0 +1,14 @@
+{
+    // Use IntelliSense para saber los atributos posibles.
+    // Mantenga el puntero para ver las descripciones de los existentes atributos.
+    // Para más información, visite: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "msedge",
+            "request": "launch",
+            "name": "Open kan_architecture_diagram.html",
+            "file": "c:\\Users\\basve\\Desktop\\GRO63-c60d67bb5d95a965fe1b540643642cf5934f0e73\\analysis_results\\kan_architecture_diagram.html"
+        }
+    ]
+}

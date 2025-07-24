@@ -1,0 +1,297 @@
+include gro
+
+// ——————————————————————————————————————————————————
+// FILTRO CONVOLUCIONAL MEDIANTE RED KAN
+// ——————————————————————————————————————————————————
+
+set("dt", 0.1);
+set("population_max", 15000);
+set("signals", 1.0);
+set("signals_draw", 1.0);
+grid("continuous", "gro_original", 10, 10, 8);
+
+// ——————————————————————————————————————————————————
+// Variables y CSV
+// ——————————————————————————————————————————————————
+
+t := 0.0;
+fp := fopen("kan_convolutional_filter.csv", "w");
+fprint(fp, "time,yellow_output,green_output,phlf,qacr,iptg,atc,f_phlf,f_qacr,f_iptg,f_atc,total\n"); 
+
+// ——————————————————————————————————————————————————
+// Señales originales del filtro (entradas a la red KAN)
+// ——————————————————————————————————————————————————
+
+PhlF := s_signal([kdiff := 0.8, kdeg := 0.005]);
+QacR := s_signal([kdiff := 0.8, kdeg := 0.005]);
+IptG := s_signal([kdiff := 0.8, kdeg := 0.005]);
+AtC  := s_signal([kdiff := 0.8, kdeg := 0.005]);
+
+// Señales internas KAN para comunicación entre capas
+KAN_Layer1 := s_signal([kdiff := 0.5, kdeg := 0.05]);
+KAN_Layer2 := s_signal([kdiff := 0.5, kdeg := 0.05]);
+KAN_Output := s_signal([kdiff := 0.5, kdeg := 0.05]);
+
+// ——————————————————————————————————————————————————
+// CAPA DE ENTRADA: Funciones univariadas sobre señales
+// ——————————————————————————————————————————————————
+
+// f1(PhlF): Función identidad con umbral
+genes([
+    name := "KAN_f_PhlF",
+    proteins := {"f_phlf"},
+    promoter := [function := "YES", transcription_factors := {"phlf"}],
+    prot_act_times := [times := {5.0}, variabilities := {1.0}],
+    prot_deg_times := [times := {2.0}, variabilities := {0.5}]
+]);
+
+// f2(QacR): Función inversora (NOT)
+genes([
+    name := "KAN_f_QacR",
+    proteins := {"f_qacr"},
+    promoter := [function := "NOT", transcription_factors := {"qacr"}],
+    prot_act_times := [times := {5.0}, variabilities := {1.0}],
+    prot_deg_times := [times := {2.0}, variabilities := {0.5}]
+]);
+
+// f3(IptG): Función amplificadora
+genes([
+    name := "KAN_f_IptG",
+    proteins := {"f_iptg_low", "f_iptg_high"},
+    promoter := [function := "YES", transcription_factors := {"iptg"}],
+    prot_act_times := [times := {5.0, 5.0}, variabilities := {1.0, 1.0}],
+    prot_deg_times := [times := {2.0, 2.0}, variabilities := {0.5, 0.5}]
+]);
+
+// f4(AtC): Función amplificadora
+genes([
+    name := "KAN_f_AtC",
+    proteins := {"f_atc_low", "f_atc_high"},
+    promoter := [function := "YES", transcription_factors := {"atc"}],
+    prot_act_times := [times := {5.0, 5.0}, variabilities := {1.0, 1.0}],
+    prot_deg_times := [times := {2.0, 2.0}, variabilities := {0.5, 0.5}]
+]);
+
+// ——————————————————————————————————————————————————
+// CAPA OCULTA 1: Combinaciones (nodos suma)
+// ——————————————————————————————————————————————————
+
+// Nodo 1: Combina f_phlf + f_qacr (para detectar condición YFP)
+genes([
+    name := "KAN_Node1",
+    proteins := {"node1_output"},
+    promoter := [function := "AND", transcription_factors := {"f_phlf", "f_qacr"}],
+    prot_act_times := [times := {8.0}, variabilities := {1.5}],
+    prot_deg_times := [times := {3.0}, variabilities := {0.5}]
+]);
+
+// Nodo 2: Combina f_iptg + f_atc (para detectar condición GFP)
+genes([
+    name := "KAN_Node2_Stage1",
+    proteins := {"node2_partial"},
+    promoter := [function := "YES", transcription_factors := {"f_iptg_high"}],
+    prot_act_times := [times := {8.0}, variabilities := {1.5}],
+    prot_deg_times := [times := {3.0}, variabilities := {0.5}]
+]);
+
+genes([
+    name := "KAN_Node2_Stage2",
+    proteins := {"node2_output"},
+    promoter := [function := "AND", transcription_factors := {"node2_partial", "f_atc_high"}],
+    prot_act_times := [times := {8.0}, variabilities := {1.5}],
+    prot_deg_times := [times := {3.0}, variabilities := {0.5}]
+]);
+
+// ——————————————————————————————————————————————————
+// CAPA DE SALIDA: Funciones de activación final
+// ——————————————————————————————————————————————————
+
+// Salida AMARILLA (equivalente a YFP)
+genes([
+    name := "KAN_Yellow_Output",
+    proteins := {"yellow_output"},
+    promoter := [function := "YES", transcription_factors := {"node1_output"}],
+    prot_act_times := [times := {10.0}, variabilities := {2.0}],
+    prot_deg_times := [times := {1.0}, variabilities := {0.0}]
+]);
+
+// Salida VERDE (equivalente a GFP)
+genes([
+    name := "KAN_Green_Output",
+    proteins := {"green_output"},
+    promoter := [function := "YES", transcription_factors := {"node2_output"}],
+    prot_act_times := [times := {10.0}, variabilities := {2.0}],
+    prot_deg_times := [times := {1.0}, variabilities := {0.0}]
+]);
+
+// ——————————————————————————————————————————————————
+// Estados KAN para transiciones dinámicas
+// ——————————————————————————————————————————————————
+
+// Estado receptor - detecta señales entrantes
+genes([
+    name := "KAN_Receptor_State",
+    proteins := {"kan_receptor"},
+    promoter := [function := "TRUE"],
+    prot_act_times := [times := {0.0}, variabilities := {0.0}],
+    prot_deg_times := [times := {0.0}, variabilities := {0.0}]
+]);
+
+// Estado procesador - computa funciones
+genes([
+    name := "KAN_Processor_State",
+    proteins := {"kan_processor"},
+    promoter := [function := "YES", transcription_factors := {"kan_receptor"}],
+    prot_act_times := [times := {5.0}, variabilities := {1.0}],
+    prot_deg_times := [times := {100.0}, variabilities := {10.0}]
+]);
+
+// Estado emisor - produce salidas
+genes([
+    name := "KAN_Emitter_State",
+    proteins := {"kan_emitter"},
+    promoter := [function := "YES", transcription_factors := {"kan_processor"}],
+    prot_act_times := [times := {10.0}, variabilities := {2.0}],
+    prot_deg_times := [times := {100.0}, variabilities := {10.0}]
+]);
+
+// ——————————————————————————————————————————————————
+// Operones auxiliares originales
+// ——————————————————————————————————————————————————
+
+// NUEVO: Operón PhlF - necesario para generar señal PhlF
+genes([
+    name := "OperonPhlF",
+    proteins := {"phlf"},
+    promoter := [function := "NOT", transcription_factors := {"qacr"}],
+    prot_act_times := [times := {15.0}, variabilities := {2.0}],
+    prot_deg_times := [times := {1.0}, variabilities := {0.0}]
+]);
+
+// NUEVO: Operón detector de QacR
+genes([
+    name := "OperonQacRDetector", 
+    proteins := {"qacr"},
+    promoter := [function := "YES", transcription_factors := {"qacr_signal"}],
+    prot_act_times := [times := {15.0}, variabilities := {2.0}],
+    prot_deg_times := [times := {1.0}, variabilities := {0.0}]
+]);
+
+genes([
+    name:= "OperonIptG",
+    proteins:= {"iptg"},
+    promoter:= [function := "TRUE"],
+    prot_act_times := [times := {15.0}, variabilities := {2.0}],
+    prot_deg_times  := [times := {1.0},  variabilities := {0.0}]
+]);
+
+genes([
+    name:= "OperonAtC",
+    proteins:= {"atc"},
+    promoter:= [function := "TRUE"],
+    prot_act_times := [times := {15.0}, variabilities := {2.0}],
+    prot_deg_times  := [times := {1.0},  variabilities := {0.0}]
+]);
+
+// ——————————————————————————————————————————————————
+// Plásmidos
+// ——————————————————————————————————————————————————
+
+plasmids_genes([
+    // Plásmidos de señales originales
+    p0 := {"OperonAtC"},
+    p1 := {"OperonIptG"},
+    p2 := {"OperonPhlF", "OperonQacRDetector"}, // NUEVO: añadido PhlF y detector QacR
+    
+    // Plásmidos KAN - Capa de entrada
+    p_input := {"KAN_f_PhlF", "KAN_f_QacR", "KAN_f_IptG", "KAN_f_AtC"},
+    
+    // Plásmidos KAN - Capa oculta
+    p_hidden := {"KAN_Node1", "KAN_Node2_Stage1", "KAN_Node2_Stage2"},
+    
+    // Plásmidos KAN - Capa de salida
+    p_output := {"KAN_Yellow_Output", "KAN_Green_Output"},
+    
+    // Plásmidos KAN - Estados
+    p_states := {"KAN_Receptor_State", "KAN_Processor_State", "KAN_Emitter_State"}
+]);
+
+// ——————————————————————————————————————————————————
+// Acciones - Visualización
+// ——————————————————————————————————————————————————
+
+// Salidas finales con los mismos colores que el filtro original
+action({"yellow_output"}, "d_paint", {"0", "0", "1", "0"});   // Amarillo
+action({"-yellow_output"}, "d_paint", {"0", "0", "-1", "0"});
+action({"green_output"}, "d_paint", {"1", "0", "0", "0"});    // Verde
+action({"-green_output"}, "d_paint", {"-1", "0", "0", "0"});
+
+// ——————————————————————————————————————————————————
+// Acciones - Emisión de señales
+// ——————————————————————————————————————————————
+
+// Emisión de señales intermedias KAN
+action({"f_phlf"}, "s_emit_signal", {tostring(KAN_Layer1), "0.5", "exact"});
+action({"f_qacr"}, "s_emit_signal", {tostring(KAN_Layer1), "0.5", "exact"});
+action({"node1_output"}, "s_emit_signal", {tostring(KAN_Layer2), "1.0", "exact"});
+action({"node2_output"}, "s_emit_signal", {tostring(KAN_Layer2), "1.0", "exact"});
+
+// ——————————————————————————————————————————————————
+// Acciones - Detección con Quorum Sensing
+// ——————————————————————————————————————————————————
+
+// Detección de señales originales (entrada a la red)
+action({}, "s_get_QS", {tostring(PhlF), ">", "0.5", "phlf"});
+action({}, "s_get_QS", {tostring(QacR), ">", "0.001", "qacr"});
+action({}, "s_get_QS", {tostring(QacR), ">", "0.001", "qacr_signal"}); // NUEVO: para activar detector
+action({}, "s_get_QS", {tostring(IptG), ">", "0.001", "iptg"});
+action({}, "s_get_QS", {tostring(AtC), ">", "0.001", "atc"});
+
+// ——————————————————————————————————————————————————
+// Acciones - Transiciones de estado KAN
+// ——————————————————————————————————————————————————
+
+// Transición: Receptor → Procesador cuando hay señales
+action({"kan_receptor", "phlf"}, "conjugate", {"p_hidden", "1.0"});
+action({"kan_receptor", "qacr"}, "conjugate", {"p_hidden", "1.0"});
+action({"kan_receptor", "iptg"}, "conjugate", {"p_hidden", "1.0"});
+action({"kan_receptor", "atc"}, "conjugate", {"p_hidden", "1.0"});
+
+// Transición: Procesador → Emisor cuando hay computación
+action({"kan_processor", "node1_output"}, "conjugate", {"p_output", "1.0"});
+action({"kan_processor", "node2_output"}, "conjugate", {"p_output", "1.0"});
+
+// Control de crecimiento
+action({}, "set_growth_rate", {"0.017"});
+
+// ——————————————————————————————————————————————————
+// Programa p
+// ——————————————————————————————————————————————————
+
+program p() :=
+{
+    skip();
+};
+
+// ——————————————————————————————————————————————————
+// Programa principal
+// ——————————————————————————————————————————————————
+
+program main() :=
+{
+    true:{
+        t := t + dt;
+        dump_multiple(fp, {"yellow_output"}, {"green_output"}, {"f_phlf"}, {"f_qacr"}, 
+                          {"f_iptg_high"}, {"f_atc_high"}, {"node1_output"}, {"node2_output"});
+    }
+    
+    // Establecimiento de señales originales (igual que el filtro)
+    t > 1:{
+        s_set_signal(QacR, 30, 0.0, 0.0);    // Centro
+        s_set_signal(IptG, 50, 300, 0.0);   // Derecha
+        s_set_signal(AtC, 50, -300, 0.0);   // Izquierda
+    }
+    
+    // Inicialización con todos los componentes KAN
+    c_ecolis(3000, 0, 0, 250, {"p0", "p1", "p2", "p_input", "p_hidden", "p_output", "p_states"}, program p());
+};

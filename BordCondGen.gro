@@ -1,0 +1,123 @@
+include gro
+
+// ==================== Parámetros globales ====================
+set("dt",             0.1);
+set("population_max", 15000);
+set("signals",        1.0);
+set("signals_draw",   1.0);
+grid("continuous", "gro_original", 10, 10, 8);
+
+t := 0.0;
+fp := fopen("filtro_convolucional_original_final1.csv", "w");
+fprint(fp, "time,phlf,qacr,yfp,gfp,atc,iptg,total\n");
+
+// ==================== Definición de señales ====================
+PhlF := s_signal([kdiff := 0.8, kdeg := 0.005]);
+QacR := s_signal([kdiff := 0.8, kdeg := 0.005]);
+IptG := s_signal([kdiff := 0.8, kdeg := 0.005]);
+AtC  := s_signal([kdiff := 0.8, kdeg := 0.005]);
+
+// ==================== Circuitos génicos ====================
+genes([
+  name := "OperonYfp",
+  proteins := {"yfp"},
+  promoter := [function := "AND",
+               transcription_factors := {"phlf","qacr"}],
+  prot_act_times := [times := {15.0}, variabilities := {2.0}],
+  prot_deg_times := [times := {1.0},  variabilities := {0.0}]
+]);
+
+genes([
+  name := "OperonPhlF",
+  proteins := {"phlf"},
+  promoter := [function := "NOT",
+               transcription_factors := {"qacr"}],
+  prot_act_times := [times := {15.0}, variabilities := {2.0}],
+  prot_deg_times := [times := {1.0},  variabilities := {0.0}]
+]);
+
+genes([
+  name := "OperonGfp",
+  proteins := {"gfp"},
+  promoter := [function := "AND",
+               transcription_factors := {"iptg","atc"}],
+  prot_act_times := [times := {15.0}, variabilities := {2.0}],
+  prot_deg_times := [times := {1.0},  variabilities := {0.0}]
+]);
+
+genes([
+  name := "OperonIptG",
+  proteins := {"iptg"},
+  promoter := [function := "TRUE"],
+  prot_act_times := [times := {15.0}, variabilities := {2.0}],
+  prot_deg_times := [times := {1.0},  variabilities := {0.0}]
+]);
+
+genes([
+  name := "OperonAtC",
+  proteins := {"atc"},
+  promoter := [function := "TRUE"],
+  prot_act_times := [times := {15.0}, variabilities := {2.0}],
+  prot_deg_times := [times := {1.0},  variabilities := {0.0}]
+]);
+
+genes([
+  name := "OperonRpaI",
+  proteins := {"rpai"},
+  promoter := [function := "OR",
+               transcription_factors := {"yfp","gfp"}],
+  prot_act_times := [times := {15.0}, variabilities := {2.0}],
+  prot_deg_times := [times := {1.0},  variabilities := {0.0}]
+]);
+
+// ==================== Composición de plásmidos ====================
+plasmids_genes([
+  p0 := {"OperonAtC"},
+  p1 := {"OperonIptG"},
+  p2 := {"OperonGfp"},
+  p3 := {"OperonPhlF","OperonYfp"},
+  p4 := {"OperonRpaI"}
+]);
+
+// ==================== Acciones fenotípicas ====================
+action({"yfp"},  "d_paint", {"0","0","1","0"});
+action({"-yfp"}, "d_paint", {"0","0","-1","0"});
+action({"gfp"},  "d_paint", {"1","0","0","0"});
+action({"-gfp"}, "d_paint", {"-1","0","0","0"});
+
+action({"phlf"}, "s_emit_signal", {tostring(PhlF),"0.05","exact"});
+
+action({}, "s_get_QS", {tostring(PhlF), ">", "0.5",   "phlf"});
+action({}, "s_get_QS", {tostring(QacR), ">", "0.001", "qacr"});
+action({}, "s_get_QS", {tostring(IptG), ">", "0.001", "iptg"});
+action({}, "s_get_QS", {tostring(AtC),  ">", "0.001", "atc"});
+
+action({}, "set_growth_rate", {"0.017"});
+
+// ==================== Programa de la célula ====================
+program p() := {
+  skip();
+};
+
+// ==================== Programa principal ====================
+program main() := {
+  true: 
+  { 
+    t := t + dt;
+    dump_multiple(fp, {"phlf"}, {"qacr"}, {"yfp"}, {"gfp"}, {"atc"}, {"iptg"}, {});
+  }   // bloque de inicialización
+
+  t > 1: {
+    t := t + dt;
+    s_set_signal(QacR, 30,   0.0,  0.0);
+    s_set_signal(IptG, 50, 300.0,  0.0);
+    s_set_signal(AtC,  50, -300.0, 0.0);
+  }
+
+  c_ecolis(
+    3000,        // cantidad de células
+    0, 0, 250,   // x, y, radio
+    {"p0","p1","p2","p3","p4"},
+    program p()
+  );
+};

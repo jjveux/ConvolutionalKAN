@@ -1,0 +1,106 @@
+include gro
+
+// ——————————————————————————————————————————————————
+// 1) Parámetros globales y módulo de señales
+// ——————————————————————————————————————————————————
+
+set("dt", 0.1);
+set("population_max", 10000);
+set("signals", 1.0);
+set("signals_draw", 1.0);
+grid("continuous", "gro_original", 10, 10, 8);
+
+// ——————————————————————————————————————————————————
+// 2) Variables de tiempo y CSV
+// ——————————————————————————————————————————————————
+
+
+t        := 0.0;
+nextDump := 0.0;
+dumpStep := 1.0;
+
+// ——————————————————————————————————————————————————
+// Abrir CSV y escribir cabecera
+// ——————————————————————————————————————————————————
+
+fp := fopen("bordes_data_Sim.csv","w");
+fprint(fp, "time,gfp,PhlF,RpaI,total\n");
+
+// ——————————————————————————————————————————————————
+// 3) Señales
+// ——————————————————————————————————————————————————
+
+PhlF := s_signal([ kdiff := 0.5, kdeg := 0.005 ]);
+RpaI := s_signal([ kdiff := 0.5, kdeg := 0.005 ]);
+
+// ——————————————————————————————————————————————————
+// 4) Operones y Plásmidos
+// ——————————————————————————————————————————————————
+
+genes([
+    name        := "OperonAND",
+    proteins    := {"gfp"},
+    promoter    := [function := "AND", transcription_factors := {"PhlF", "RpaI"}],
+    prot_act_times := [times := {15.0}, variabilities := {2.0}],
+    prot_deg_times  := [times := {1.0},  variabilities := {0.0}]
+]);
+
+genes([
+    name        := "OperonPhlF",
+    proteins    := {"PhlF"},
+    promoter    := [ function := "TRUE" ],
+    prot_act_times := [ times := {15.0}, variabilities := {2.0} ],
+    prot_deg_times  := [ times := {1.0},  variabilities := {0.0} ]
+]);
+
+genes([
+    name        := "OperonRpaI",
+    proteins    := {"RpaI"},
+    promoter    := [ function := "TRUE" ],
+    prot_act_times := [ times := {15.0}, variabilities := {2.0} ],
+    prot_deg_times  := [ times := {1.0},  variabilities := {0.0} ]
+]);
+
+plasmids_genes([ p1:= {"OperonPhlF"}, p2:= {"OperonRpaI"}, pFinal:= {"OperonAND"} ]);
+
+// ——————————————————————————————————————————————————
+// 5) Acciones de señal y QS y Pintado de GFP
+// ——————————————————————————————————————————————————
+
+action({"gfp"}, "d_paint", {"1", "0", "0", "0"});
+action({"-gfp"}, "d_paint", {"-1", "0", "0", "0"});
+action({"PhlF"}, "s_emit_signal", {tostring(PhlF), "0.1", "exact"});
+action({"RpaI"}, "s_emit_signal", {tostring(RpaI), "0.1", "exact"});
+action({}, "s_get_QS", {tostring(PhlF), ">", "0.05", "PhlF"});
+action({}, "s_get_QS", {tostring(RpaI), ">", "0.05", "RpaI"});
+action({}, "set_growth_rate", {"0.017"});
+
+// ——————————————————————————————————————————————————
+// 6)  Programa celular: dump periódico con la firma correcta
+// ——————————————————————————————————————————————————
+
+program cell() :=
+{
+    t >= nextDump :
+    {
+        // dump_multiple(fp, lista_pos, lista_neg)
+        dump_multiple(fp, {"PhlF", "RpaI"}, {}, {"gfp"}, {});
+        nextDump := nextDump + dumpStep;
+    }
+};
+
+// ——————————————————————————————————————————————————
+// 7) Programa principal: inoculación y pulso
+// ——————————————————————————————————————————————————
+
+program main() :=
+{
+    true:
+    {
+        t := t + dt; 
+    }
+    c_ecolis(300, 0, 0, 80, {"pFinal"}, program cell());
+    c_ecolis(300, 300, 0, 80, {"p1"}, program cell());
+    c_ecolis(300,-300, 0, 80, {"p2"}, program cell());
+};
+

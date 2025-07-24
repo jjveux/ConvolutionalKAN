@@ -1,0 +1,13 @@
+{
+    "files.associations": {
+        "*.gro": "cpp",
+        "system_error": "cpp",
+        "xlocale": "cpp",
+        "random": "cpp",
+        "functional": "cpp"
+    },
+    "editor.cursorBlinking": "blink",
+    "editor.cursorSmoothCaretAnimation": "explicit",
+    "files.autoGuessEncoding": true,
+    "commentTranslate.hover.enabled": true
+}

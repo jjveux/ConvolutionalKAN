@@ -1,0 +1,13 @@
+Métrica,"Modelo Original [4,8,2]","Modelo Optimizado [3,4,2]",Mejora
+Parámetros totales,952,428,+55.0%
+MSE Entrenamiento,0.001638,0.000898,+45.2%
+MSE Prueba,1.169,0.011,+99.1%
+Ratio de Sobreajuste,713.66,12.22,+98.3%
+Eficiencia de conversión (%),No disponible,12.0,N/A
+Índice de discriminación,No identificado,0.472,N/A
+Silhouette Score (Clustering),No calculado,0.658,N/A
+Transiciones de estado,No definidas,1 única transición,N/A
+Tiempo activación Yellow (min),No medido,29.1,N/A
+Tiempo activación Green (min),No medido,59.9,N/A
+Ventana discriminación (min),No existe,30.8,N/A
+Controlador principal QacR,No identificado,"Sí, eficiencia = 1.92",N/A

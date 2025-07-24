@@ -1,0 +1,105 @@
+include gro
+
+// ——————————————————————————————————————————————————
+// 1) Parámetros globales y módulo de señales
+// ——————————————————————————————————————————————————
+set("dt",             0.1);
+set("population_max", 10000);
+set("signals",        1.0);
+set("signals_draw",   1.0);
+grid("continuous","gro_original",10,10,8);
+
+// ——————————————————————————————————————————————————
+// 2) Variables de tiempo y CSV
+// ——————————————————————————————————————————————————
+t        := 0.0;
+
+// ——————————————————————————————————————————————————
+// 3) Abrir CSV y escribir cabecera
+// ——————————————————————————————————————————————————
+
+fp := fopen("filtro_convolucional_original.csv","w");
+fprint(fp, "time,phlf,qacr,yfp,total\n");
+
+
+// ——————————————————————————————————————————————————
+// 4) Señales
+// ——————————————————————————————————————————————————
+PhlF := s_signal([ kdiff := 0.8, kdeg := 0.005 ]);
+QacR := s_signal([ kdiff := 0.8, kdeg := 0.005 ]);
+
+// ——————————————————————————————————————————————————
+// 5) Operones y Plasmidos
+// ——————————————————————————————————————————————————
+genes([
+  name     := "OperonYfp",
+  proteins := {"yfp"},
+  promoter := [ function := "AND", transcription_factors := {"PhlF","QacR"} ],
+  prot_act_times := [ times := {15.0}, variabilities := {2.0} ],
+  prot_deg_times  := [ times := {1.0},  variabilities := {0.0} ]
+]);
+
+genes([
+  name     := "OperonPhlF",
+  proteins := {"PhlF"},
+  promoter := [ function := "NOT", transcription_factors := {"QacR"} ],
+  prot_act_times := [ times := {15.0}, variabilities := {2.0} ],
+  prot_deg_times  := [ times := {1.0},  variabilities := {0.0} ]
+]);
+
+plasmids_genes([ pPhlF_QacR := {"OperonPhlF","OperonYfp"} ]);
+
+// ——————————————————————————————————————————————————
+// 6) Acciones de señal y QS
+// ——————————————————————————————————————————————————
+action({"PhlF"},"s_emit_signal", { tostring(PhlF), "0.05", "exact" });
+action({}     ,"s_get_QS",        { tostring(PhlF), ">","0.5",   "PhlF" });
+action({}     ,"s_get_QS",        { tostring(QacR), ">","0.001","QacR" });
+action({}     ,"set_growth_rate", { "0.017" });
+
+// Pintado de YFP (azul)
+action({"yfp"},"d_paint",{"0","0","1","0"});
+action({"-yfp"},"d_paint",{"0","0","-1","0"});
+
+
+// ——————————————————————————————————————————————————
+// 7) Programa celular: dump periódico con la firma correcta
+// ——————————————————————————————————————————————————
+
+
+program cell() :=
+{
+
+  skip();
+
+    
+  
+};
+
+
+// ——————————————————————————————————————————————————
+// 8) Programa principal: inoculación y pulso
+// ——————————————————————————————————————————————————
+
+
+program main() :=
+{
+  t = 0 :
+  {
+    c_ecolis(3000, 0, 0, 250, {"pPhlF_QacR"}, program cell());
+  }
+
+  true :
+  {
+    t := t + dt;
+            // dump_multiple(fp, lista_pos, lista_neg)
+    dump_multiple(fp, {"PhlF"},{"QacR"},{"yfp"}, {});
+  }
+
+  t > 1 :
+  {
+    s_set_signal(QacR, 30, 0.0, 0.0);
+  }
+
+  // t > 50 : { stop(); }  // opcional
+};

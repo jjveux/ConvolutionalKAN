@@ -1,0 +1,195 @@
+include gro
+
+// ——————————————————————————————————————————————————
+// 1) Parámetros globales y módulo de señales
+// ——————————————————————————————————————————————————
+
+set("dt", 0.1);
+set("population_max", 11000);
+set("signals", 1.0);
+set("signals_draw", 1.0);
+grid("continuous", "gro_original", 10, 10, 8);
+
+// ——————————————————————————————————————————————————
+// 2) Variables de tiempo y CSV
+// ——————————————————————————————————————————————————
+
+t:= 0.0;
+fp:= fopen("conv_kan_stabilized.csv", "w");
+fprint(fp, "time,yfp,gfp,phlf,qacr,iptg,atc,gfp_concentration,total\n"); 
+
+// ——————————————————————————————————————————————————
+// 3) Señales - Incluimos señales KAN para estabilización
+// ——————————————————————————————————————————————————
+
+// Señales originales del filtro convolucional
+PhlF := s_signal([kdiff := 0.8, kdeg := 0.005]);
+QacR := s_signal([kdiff := 0.8, kdeg := 0.005]);
+IptG := s_signal([kdiff := 0.8, kdeg := 0.005]);
+AtC  := s_signal([kdiff := 0.8, kdeg := 0.005]);
+
+// Nuevas señales para estabilización tipo KAN
+GfpConcentration := s_signal([kdiff := 0.5, kdeg := 0.1]); // Señal de retroalimentación de GFP
+StabilitySignal := s_signal([kdiff := 0.5, kdeg := 0.3]);  // Señal de estabilización
+
+// ——————————————————————————————————————————————————
+// 4) Operones - Modificados para incluir lógica KAN
+// ——————————————————————————————————————————————————
+
+// Operón YFP original
+genes([
+    name        := "OperonYfp",
+    proteins    := {"yfp"},
+    promoter    := [function := "AND", transcription_factors := {"phlf", "qacr"}],
+    prot_act_times := [times := {15.0}, variabilities := {2.0}],
+    prot_deg_times  := [times := {1.0},  variabilities := {0.0}]
+]);
+
+// Operón PhlF original
+genes([
+    name        := "OperonPhlF",
+    proteins    := {"phlf"},
+    promoter    := [function := "NOT", transcription_factors := {"qacr"}],
+    prot_act_times := [times := {15.0}, variabilities := {2.0}],
+    prot_deg_times  := [times := {1.0},  variabilities := {0.0}]
+]);
+
+// Operón GFP modificado - ahora con inhibición por alta concentración
+genes([
+    name        := "OperonGfp",
+    proteins    := {"gfp"},
+    promoter    := [function := "AND", transcription_factors := {"iptg", "atc", "-gfp_inhibitor"}],
+    prot_act_times := [times := {15.0}, variabilities := {2.0}],
+    prot_deg_times  := [times := {1.0},  variabilities := {0.0}]
+]);
+
+// Nuevo operón - Detector de alta concentración de GFP
+genes([
+    name        := "OperonGfpInhibitor",
+    proteins    := {"gfp_inhibitor"},
+    promoter    := [function := "YES", transcription_factors := {"high_gfp"}],
+    prot_act_times := [times := {5.0}, variabilities := {1.0}],
+    prot_deg_times  := [times := {0.5},  variabilities := {0.1}]
+]);
+
+// Nuevo operón - Emisor de señal de estabilización
+genes([
+    name        := "OperonStabilizer",
+    proteins    := {"stabilizer"},
+    promoter    := [function := "AND", transcription_factors := {"gfp", "-stable"}],
+    prot_act_times := [times := {10.0}, variabilities := {2.0}],
+    prot_deg_times  := [times := {2.0},  variabilities := {0.5}]
+]);
+
+// Operones constitutivos originales
+genes([
+    name:= "OperonIptG",
+    proteins:= {"iptg"},
+    promoter:= [function := "TRUE"],
+    prot_act_times := [times := {15.0}, variabilities := {2.0}],
+    prot_deg_times  := [times := {1.0},  variabilities := {0.0}]
+]);
+
+genes([
+    name:= "OperonAtC",
+    proteins:= {"atc"},
+    promoter:= [function := "TRUE"],
+    prot_act_times := [times := {15.0}, variabilities := {2.0}],
+    prot_deg_times  := [times := {1.0},  variabilities := {0.0}]
+]);
+
+// ——————————————————————————————————————————————————
+// 5) Plásmidos
+// ——————————————————————————————————————————————————
+
+plasmids_genes ([ 
+    p0:={"OperonAtC"}, 
+    p1:={"OperonIptG"}, 
+    p2:={"OperonGfp", "OperonGfpInhibitor", "OperonStabilizer"}, 
+    p3:={"OperonPhlF", "OperonYfp"} 
+]);
+
+// ——————————————————————————————————————————————————
+// 6) Acciones - Incluye lógica de estabilización KAN
+// ——————————————————————————————————————————————————
+
+// Visualización original
+action({"yfp"}, "d_paint", {"0", "0", "1", "0"});
+action({"-yfp"}, "d_paint", {"0", "0", "-1", "0"});
+action({"gfp"}, "d_paint", {"1", "0", "0", "0"});
+action({"-gfp"}, "d_paint", {"-1", "0", "0", "0"});
+
+// Emisión de señales originales
+action({"phlf"},"s_emit_signal",{tostring(PhlF), "0.05", "exact"});
+
+// Detección de señales originales con quorum sensing
+action({}, "s_get_QS", {tostring(PhlF), ">", "0.5", "phlf"});
+action({}, "s_get_QS", {tostring(QacR), ">", "0.001", "qacr"});
+action({}, "s_get_QS", {tostring(IptG), ">", "0.001", "iptg"});
+action({}, "s_get_QS", {tostring(AtC), ">", "0.001", "atc"});
+
+// NUEVO: Sistema de retroalimentación tipo KAN
+// GFP emite señal proporcional a su concentración
+action({"gfp"}, "s_emit_signal", {tostring(GfpConcentration), "1.0", "exact"});
+
+// Detectar alta concentración de GFP (umbral para inhibición)
+action({}, "s_get_QS", {tostring(GfpConcentration), ">", "15.0", "high_gfp"});
+
+// Emisión y detección de señal de estabilidad
+action({"stabilizer"}, "s_emit_signal", {tostring(StabilitySignal), "0.5", "exact"});
+action({}, "s_get_QS", {tostring(StabilitySignal), ">", "5.0", "stable"});
+
+// Control de crecimiento diferenciado
+action({"-gfp"}, "set_growth_rate", {"0.017"});        // Células sin GFP crecen normal
+action({"gfp", "-high_gfp"}, "set_growth_rate", {"0.015"}); // GFP medio crece un poco menos
+action({"gfp", "high_gfp"}, "set_growth_rate", {"0.008"});  // GFP alto crece muy poco
+
+// NUEVO: Auto-eliminación para células con muy baja señal
+action({"gfp", "-iptg"}, "die", {});  // Muerte si pierde IptG
+action({"gfp", "-atc"}, "die", {});   // Muerte si pierde AtC
+
+// ——————————————————————————————————————————————————
+// 7) Programa p
+// ——————————————————————————————————————————————————
+
+program p() :=
+{
+    skip();
+};
+
+// ——————————————————————————————————————————————————
+// 8) Programa principal con control temporal
+// ——————————————————————————————————————————————————
+
+program main() :=
+{
+    true:{
+        t := t + dt;
+        // Registro continuo de datos
+        dump_multiple(fp, {"yfp"}, {"gfp"}, {"phlf"}, {"qacr"}, {"iptg"}, {"atc"}, {"high_gfp"});
+    }
+    
+    // Fase 1: Establecimiento del patrón inicial (t > 1)
+    t > 1 & t < 100:{
+        s_set_signal(QacR, 30, 0.0, 0.0);
+        s_set_signal(IptG, 50, 300, 0.0);
+        s_set_signal(AtC, 50, -300, 0.0);
+    }
+    
+    // Fase 2: Reducción gradual de señales para permitir estabilización (t > 100)
+    t > 100 & t < 200:{
+        s_set_signal(QacR, 20, 0.0, 0.0);    // Reducimos QacR
+        s_set_signal(IptG, 30, 250, 0.0);    // Acercamos IptG
+        s_set_signal(AtC, 30, -250, 0.0);    // Acercamos AtC
+    }
+    
+    // Fase 3: Señales mínimas para mantener solo el núcleo estable (t > 200)
+    t > 200:{
+        s_set_signal(QacR, 10, 0.0, 0.0);    // QacR mínimo
+        s_set_signal(IptG, 20, 200, 0.0);    // IptG más cerca
+        s_set_signal(AtC, 20, -200, 0.0);    // AtC más cerca
+    }
+    
+    // Inicialización de la población
+    c_ecolis(3000, 0, 0, 250, {"p0", "p1", "p2", "p3"}, program p());
+};

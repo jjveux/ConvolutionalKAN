@@ -1,0 +1,12 @@
+✓ El filtro KAN produce exitosamente ambas salidas (amarilla y verde)
+✓ Respuesta rápida del sistema: promedio 44.5 unidades de tiempo
+✓ Sistema moderadamente estable
+❌ Baja eficiencia: 12.0%
+✓ Buena concordancia con el filtro original (<20% diferencia)
+
+=== Validación de Arquitectura KAN ===
+✓ Las funciones univariadas detectadas corresponden a:
+  - f(QacR) → NOT (inversión)
+  - f(PhlF) → Identidad con umbral
+  - f(IptG), f(AtC) → Amplificación
+✓ Los nodos suma implementan correctamente las operaciones AND/OR

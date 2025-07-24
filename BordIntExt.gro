@@ -1,0 +1,98 @@
+include gro
+
+set("dt",             0.1);
+set("population_max", 10000);
+set("signals",        1.0);
+set("signals_draw",   1.0);
+grid("continuous", "gro_original", 10, 10, 8);
+
+t        := 0.0;
+nextDump := 0.0;
+dumpStep := 1.0;
+
+// Señales
+PhlF := s_signal([kdiff := 0.8, kdeg := 0.005]);
+QacR := s_signal([kdiff := 0.8, kdeg := 0.005]);
+RpaI := s_signal([kdiff := 0.8, kdeg := 0.005]);
+
+// Genes
+genes([
+  name := "OperonYfp",
+  proteins := {"yfp", "rpai"},
+  promoter := [function := "AND", transcription_factors := {"phlf", "qacr"}],
+  prot_act_times := [times := {15.0, 15.0}, variabilities := {2.0, 2.0}],
+  prot_deg_times := [times := {1.0, 1.0}, variabilities := {0.0, 0.0}]
+]);
+genes([
+  name := "OperonPhlF",
+  proteins := {"phlf"},
+  promoter := [function := "NOT", transcription_factors := {"qacr"}],
+  prot_act_times := [times := {15.0}, variabilities := {2.0}],
+  prot_deg_times := [times := {1.0}, variabilities := {0.0}]
+]);
+genes([
+  name := "OperonGFP",
+  proteins := {"gfp"},
+  promoter := [function := "AND", transcription_factors := {"-yfp", "qacr", "rpai"}],
+  prot_act_times := [times := {15.0}, variabilities := {2.0}],
+  prot_deg_times := [times := {1.0}, variabilities := {0.0}]
+]);
+genes([
+  name := "OperonRFP",
+  proteins := {"rfp"},
+  promoter := [function := "AND", transcription_factors := {"-yfp", "-qacr", "rpai"}],
+  prot_act_times := [times := {15.0}, variabilities := {2.0}],
+  prot_deg_times := [times := {1.0}, variabilities := {0.0}]
+]);
+
+plasmids_genes([pBordes := {"OperonPhlF", "OperonYfp", "OperonGFP", "OperonRFP"}]);
+
+// Pintado
+action({"yfp"},"d_paint",{"0","0","1","0"});
+action({"-yfp"},"d_paint",{"0","0","-1","0"});
+action({"rfp"},"d_paint",{"0","1","0","0"});
+action({"-rfp"},"d_paint",{"0","-1","0","0"});
+action({"gfp"},"d_paint",{"1","0","0","0"});
+action({"-gfp"},"d_paint",{"-1","0","0","0"});
+
+action({"phlf"},"s_emit_signal",{tostring(PhlF), "0.05", "exact"});
+action({"rpai"},"s_emit_signal",{tostring(RpaI), "0.049", "exact"});
+action({}, "s_get_QS", {tostring(PhlF), ">", "0.5", "phlf"});
+action({}, "s_get_QS", {tostring(QacR), ">", "0.001", "qacr"});
+action({}, "s_get_QS", {tostring(RpaI), ">", "0.05", "rpai"});
+action({}, "set_growth_rate", {"0.017"});
+
+// ----------- DUMP ESPACIAL -----------
+fp := fopen("bordes_intext.csv", "w");
+fprint(fp, "time,yfp,gfp,rfp,phlf,qacr,rpai,total\n");
+
+// Programa celular: dump 
+program cell() :=
+{
+     t >= nextDump :
+  {
+    // Dump múltiple con las proteínas y posición de la célula
+    dump_multiple(fp, {"yfp"}, {"gfp"}, {"rfp"}, {"phlf","qacr","rpai"}, {});
+    nextDump := nextDump + dumpStep;
+  }
+};
+
+// ——————————————————————————————————————————————————
+// 7) Programa principal: inoculación y pulso
+// ——————————————————————————————————————————————————
+
+program main() :=
+{
+  t = 0 :
+  {
+    c_ecolis(3000, 0, 0, 250, {"pBordes"}, program cell());
+  }
+
+  
+  true : { t := t + dt; }
+
+  t > 1 & t < 20 :
+  {
+    s_set_signal(QacR, 30, 0.0, 0.0);
+  }
+};

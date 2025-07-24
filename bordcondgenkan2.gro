@@ -1,0 +1,212 @@
+include gro
+
+// ——————————————————————————————————————————————————
+// 1) Parámetros globales y módulo de señales
+// ——————————————————————————————————————————————————
+
+set("dt", 0.1);
+set("population_max", 11000);
+set("signals", 1.0);
+set("signals_draw", 1.0);
+grid("continuous", "gro_original", 10, 10, 8);
+
+// ——————————————————————————————————————————————————
+// 2) Variables de tiempo y CSV
+// ——————————————————————————————————————————————————
+
+t:= 0.0;
+fp:= fopen("conv_kan_protection.csv", "w");
+fprint(fp, "time,yfp,gfp,phlf,qacr,iptg,atc,gfp_concentration,protector,total\n"); 
+
+// ——————————————————————————————————————————————————
+// 3) Señales
+// ——————————————————————————————————————————————————
+
+// Señales originales del filtro convolucional
+PhlF := s_signal([kdiff := 0.8, kdeg := 0.005]);
+QacR := s_signal([kdiff := 0.8, kdeg := 0.005]);
+IptG := s_signal([kdiff := 0.8, kdeg := 0.005]);
+AtC  := s_signal([kdiff := 0.8, kdeg := 0.005]);
+
+// Señales KAN para estabilización
+GfpConcentration := s_signal([kdiff := 0.5, kdeg := 0.1]); // Retroalimentación de GFP
+ProtectionSignal := s_signal([kdiff := 0.3, kdeg := 0.2]); // Señal de protección local
+
+// ——————————————————————————————————————————————————
+// 4) Operones
+// ——————————————————————————————————————————————————
+
+// Operón YFP original - SIN CAMBIOS
+genes([
+    name        := "OperonYfp",
+    proteins    := {"yfp"},
+    promoter    := [function := "AND", transcription_factors := {"phlf", "qacr"}],
+    prot_act_times := [times := {15.0}, variabilities := {2.0}],
+    prot_deg_times  := [times := {1.0},  variabilities := {0.0}]
+]);
+
+// Operón PhlF original - SIN CAMBIOS
+genes([
+    name        := "OperonPhlF",
+    proteins    := {"phlf"},
+    promoter    := [function := "NOT", transcription_factors := {"qacr"}],
+    prot_act_times := [times := {15.0}, variabilities := {2.0}],
+    prot_deg_times  := [times := {1.0},  variabilities := {0.0}]
+]);
+
+// Operón GFP - SIMPLIFICADO sin inhibidor inicial
+genes([
+    name        := "OperonGfp",
+    proteins    := {"gfp"},
+    promoter    := [function := "AND", transcription_factors := {"iptg", "atc"}],
+    prot_act_times := [times := {15.0}, variabilities := {2.0}],
+    prot_deg_times  := [times := {1.0},  variabilities := {0.0}]
+]);
+
+// Operón protector - Se activa en células con alta concentración de GFP
+genes([
+    name        := "OperonProtector",
+    proteins    := {"protector"},
+    promoter    := [function := "YES", transcription_factors := {"high_gfp"}],
+    prot_act_times := [times := {10.0}, variabilities := {2.0}],
+    prot_deg_times  := [times := {5.0}, variabilities := {1.0}]
+]);
+
+// Operón detector de borde - Se activa en células con baja concentración de GFP
+genes([
+    name        := "OperonEdgeDetector",
+    proteins    := {"edge_cell"},
+    promoter    := [function := "YES", transcription_factors := {"low_gfp"}],
+    prot_act_times := [times := {10.0}, variabilities := {2.0}],
+    prot_deg_times  := [times := {5.0}, variabilities := {1.0}]
+]);
+
+// Gen de fase tardía - Se activa después para permitir estabilización
+genes([
+    name        := "LatePhase",
+    proteins    := {"late_phase"},
+    promoter    := [function := "TRUE"],
+    prot_act_times := [times := {80.0}, variabilities := {10.0}],
+    prot_deg_times  := [times := {1000.0}, variabilities := {0.0}]
+]);
+
+// Operones constitutivos originales
+genes([
+    name:= "OperonIptG",
+    proteins:= {"iptg"},
+    promoter:= [function := "TRUE"],
+    prot_act_times := [times := {15.0}, variabilities := {2.0}],
+    prot_deg_times  := [times := {1.0},  variabilities := {0.0}]
+]);
+
+genes([
+    name:= "OperonAtC",
+    proteins:= {"atc"},
+    promoter:= [function := "TRUE"],
+    prot_act_times := [times := {15.0}, variabilities := {2.0}],
+    prot_deg_times  := [times := {1.0},  variabilities := {0.0}]
+]);
+
+// ——————————————————————————————————————————————————
+// 5) Plásmidos
+// ——————————————————————————————————————————————————
+
+plasmids_genes ([ 
+    p0 := {"OperonAtC"}, 
+    p1 := {"OperonIptG"}, 
+    p2 := {"OperonGfp", "OperonProtector", "OperonEdgeDetector", "LatePhase"}, 
+    p3 := {"OperonPhlF", "OperonYfp"}
+]);
+
+// ——————————————————————————————————————————————————
+// 6) Acciones - Visualización
+// ——————————————————————————————————————————————————
+
+// Visualización original
+action({"yfp"}, "d_paint", {"0", "0", "1", "0"});      // Amarillo
+action({"-yfp"}, "d_paint", {"0", "0", "-1", "0"});
+action({"gfp"}, "d_paint", {"1", "0", "0", "0"});      // Verde
+action({"-gfp"}, "d_paint", {"-1", "0", "0", "0"});
+
+// ——————————————————————————————————————————————————
+// 7) Acciones - Emisión de señales
+// ——————————————————————————————————————————————————
+
+// Emisión de señales originales
+action({"phlf"}, "s_emit_signal", {tostring(PhlF), "0.05", "exact"});
+
+// GFP emite señal de concentración
+action({"gfp"}, "s_emit_signal", {tostring(GfpConcentration), "1.5", "exact"});
+
+// Células protectoras emiten señal de protección local
+action({"protector"}, "s_emit_signal", {tostring(ProtectionSignal), "2.0", "area"});
+
+// ——————————————————————————————————————————————————
+// 8) Acciones - Detección con Quorum Sensing
+// ——————————————————————————————————————————————————
+
+// Detección de señales del filtro convolucional
+action({}, "s_get_QS", {tostring(PhlF), ">", "0.5", "phlf"});
+action({}, "s_get_QS", {tostring(QacR), ">", "0.001", "qacr"});
+action({}, "s_get_QS", {tostring(IptG), ">", "0.001", "iptg"});
+action({}, "s_get_QS", {tostring(AtC), ">", "0.001", "atc"});
+
+// Detección de concentración de GFP
+action({}, "s_get_QS", {tostring(GfpConcentration), ">", "20.0", "high_gfp"});  // Centro
+action({}, "s_get_QS", {tostring(GfpConcentration), "<", "10.0", "low_gfp"});   // Bordes
+
+// Detección de protección
+action({}, "s_get_QS", {tostring(ProtectionSignal), ">", "1.0", "protected"});
+
+// ——————————————————————————————————————————————————
+// 9) Acciones - Control de crecimiento y muerte
+// ——————————————————————————————————————————————————
+
+// Control de crecimiento diferenciado
+action({}, "set_growth_rate", {"0.017"});                      // Base
+action({"gfp", "protector"}, "set_growth_rate", {"0.016"});   // Células protegidas crecen bien
+action({"gfp", "edge_cell"}, "set_growth_rate", {"0.010"});   // Bordes crecen lento
+
+// Sistema de muerte selectiva - SOLO en fase tardía y para células de borde no protegidas
+action({"gfp", "edge_cell", "late_phase", "-protected"}, "die", {});
+
+// Muerte si pierden AMBAS señales activadoras (muy poco probable en el centro)
+action({"gfp", "-iptg", "-atc", "late_phase"}, "die", {});
+
+// ——————————————————————————————————————————————————
+// 10) Programa p
+// ——————————————————————————————————————————————————
+
+program p() :=
+{
+    skip();
+};
+
+// ——————————————————————————————————————————————————
+// 11) Programa principal
+// ——————————————————————————————————————————————————
+
+program main() :=
+{
+    true:{
+        t := t + dt;
+        dump_multiple(fp, {"yfp"}, {"gfp"}, {"protector"}, {"edge_cell"}, {"late_phase"});
+    }
+    
+    // Fase 1: Establecimiento del patrón (t=1-80)
+    t > 1:{
+        s_set_signal(QacR, 30, 0.0, 0.0);
+        s_set_signal(IptG, 50, 300, 0.0);
+        s_set_signal(AtC, 50, -300, 0.0);
+    }
+    
+    // Fase 2: Estabilización suave (t>80)
+    t > 80:{
+        s_set_signal(QacR, 25, 0.0, 0.0);      // Ligera reducción
+        s_set_signal(IptG, 40, 280, 0.0);      // Ligero acercamiento
+        s_set_signal(AtC, 40, -280, 0.0);      // Ligero acercamiento
+    }
+    
+    // Inicialización de la población
+    c_ecolis(3000, 0, 0, 250, {"p0", "p1", "p2", "p3"}, program p());
+};

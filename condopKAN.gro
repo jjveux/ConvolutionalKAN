@@ -1,0 +1,249 @@
+include gro
+
+// ——————————————————————————————————————————————————
+// FILTRO DOBLE ANILLO CON RED KAN
+// ——————————————————————————————————————————————————
+
+set("dt", 0.1);
+set("population_max", 10000);
+set("signals", 1.0);
+set("signals_draw", 1.0);
+grid("continuous", "gro_original", 10, 10, 8);
+
+// ——————————————————————————————————————————————————
+// Variables y CSV
+// ——————————————————————————————————————————————————
+
+t := 0.0;
+fp := fopen("kan_double_ring.csv", "w");
+fprint(fp, "time,yellow_output,cyan_output,f_qacr_low,f_qacr_med,f_qacr_high,total\n");
+
+// ——————————————————————————————————————————————————
+// Señales
+// ——————————————————————————————————————————————————
+
+QacR := s_signal([kdiff := 0.8, kdeg := 0.005]);
+PhlF := s_signal([kdiff := 0.8, kdeg := 0.005]);
+
+// Señales KAN internas
+KAN_Level1 := s_signal([kdiff := 0.5, kdeg := 0.05]);
+KAN_Level2 := s_signal([kdiff := 0.5, kdeg := 0.05]);
+KAN_Level3 := s_signal([kdiff := 0.5, kdeg := 0.05]);
+
+// ——————————————————————————————————————————————————
+// CAPA 1: FUNCIONES UNIVARIADAS (Detectores de nivel)
+// ——————————————————————————————————————————————————
+
+// f1: Detecta BAJA concentración de QacR (periferia)
+genes([
+    name := "KAN_f_QacR_Low",
+    proteins := {"f_qacr_low"},
+    promoter := [function := "NOT", transcription_factors := {"qacr"}],
+    prot_act_times := [times := {8.0}, variabilities := {1.5}],
+    prot_deg_times := [times := {1.0}, variabilities := {0.0}]
+]);
+
+// f2: Detecta concentración MEDIA de QacR
+genes([
+    name := "KAN_f_QacR_Medium",
+    proteins := {"f_qacr_med"},
+    promoter := [function := "AND", transcription_factors := {"qacr", "-qacr_high"}],
+    prot_act_times := [times := {8.0}, variabilities := {1.5}],
+    prot_deg_times := [times := {1.0}, variabilities := {0.0}]
+]);
+
+// f3: Detecta ALTA concentración de QacR (centro)
+genes([
+    name := "KAN_f_QacR_High",
+    proteins := {"f_qacr_high"},
+    promoter := [function := "YES", transcription_factors := {"qacr_high"}],
+    prot_act_times := [times := {8.0}, variabilities := {1.5}],
+    prot_deg_times := [times := {1.0}, variabilities := {0.0}]
+]);
+
+// ——————————————————————————————————————————————————
+// CAPA 2: NODOS SUMA (Procesamiento)
+// ——————————————————————————————————————————————————
+
+// Nodo para anillo AMARILLO (exterior)
+genes([
+    name := "KAN_Node_Yellow",
+    proteins := {"node_yellow"},
+    promoter := [function := "AND", transcription_factors := {"f_qacr_low", "f_qacr_med"}],
+    prot_act_times := [times := {10.0}, variabilities := {2.0}],
+    prot_deg_times := [times := {1.5}, variabilities := {0.5}]
+]);
+
+// Nodo para anillo CYAN (interior)
+genes([
+    name := "KAN_Node_Cyan",
+    proteins := {"node_cyan"},
+    promoter := [function := "AND", transcription_factors := {"f_qacr_med", "-f_qacr_high"}],
+    prot_act_times := [times := {10.0}, variabilities := {2.0}],
+    prot_deg_times := [times := {1.5}, variabilities := {0.5}]
+]);
+
+// ——————————————————————————————————————————————————
+// CAPA 3: SALIDA - FUNCIONES DE ACTIVACIÓN
+// ——————————————————————————————————————————————————
+
+// Salida AMARILLA (anillo exterior)
+genes([
+    name := "KAN_Yellow_Output",
+    proteins := {"yellow_output"},
+    promoter := [function := "YES", transcription_factors := {"node_yellow"}],
+    prot_act_times := [times := {12.0}, variabilities := {2.0}],
+    prot_deg_times := [times := {1.0}, variabilities := {0.0}]
+]);
+
+// Salida CYAN (anillo interior)
+genes([
+    name := "KAN_Cyan_Output",
+    proteins := {"cyan_output"},
+    promoter := [function := "YES", transcription_factors := {"node_cyan"}],
+    prot_act_times := [times := {12.0}, variabilities := {2.0}],
+    prot_deg_times := [times := {1.0}, variabilities := {0.0}]
+]);
+
+// ——————————————————————————————————————————————————
+// ESTADOS KAN
+// ——————————————————————————————————————————————————
+
+// Receptor de señales
+genes([
+    name := "KAN_Receptor",
+    proteins := {"kan_receptor"},
+    promoter := [function := "TRUE"],
+    prot_act_times := [times := {0.0}, variabilities := {0.0}],
+    prot_deg_times := [times := {0.0}, variabilities := {0.0}]
+]);
+
+// Procesador de funciones
+genes([
+    name := "KAN_Processor",
+    proteins := {"kan_processor"},
+    promoter := [function := "YES", transcription_factors := {"kan_receptor"}],
+    prot_act_times := [times := {5.0}, variabilities := {1.0}],
+    prot_deg_times := [times := {100.0}, variabilities := {10.0}]
+]);
+
+// Emisor de salidas
+genes([
+    name := "KAN_Emitter",
+    proteins := {"kan_emitter"},
+    promoter := [function := "YES", transcription_factors := {"kan_processor"}],
+    prot_act_times := [times := {10.0}, variabilities := {2.0}],
+    prot_deg_times := [times := {100.0}, variabilities := {10.0}]
+]);
+
+// ——————————————————————————————————————————————————
+// Operón PhlF (necesario para la lógica)
+// ——————————————————————————————————————————————————
+
+genes([
+    name := "OperonPhlF",
+    proteins := {"phlf"},
+    promoter := [function := "NOT", transcription_factors := {"qacr"}],
+    prot_act_times := [times := {15.0}, variabilities := {2.0}],
+    prot_deg_times := [times := {1.0}, variabilities := {0.0}]
+]);
+
+// ——————————————————————————————————————————————————
+// Plásmidos
+// ——————————————————————————————————————————————————
+
+plasmids_genes([
+    // Funciones univariadas
+    p_functions := {"KAN_f_QacR_Low", "KAN_f_QacR_Medium", "KAN_f_QacR_High"},
+    
+    // Nodos
+    p_nodes := {"KAN_Node_Yellow", "KAN_Node_Cyan"},
+    
+    // Salidas
+    p_outputs := {"KAN_Yellow_Output", "KAN_Cyan_Output"},
+    
+    // Estados
+    p_states := {"KAN_Receptor", "KAN_Processor", "KAN_Emitter"},
+    
+    // Auxiliar
+    p_aux := {"OperonPhlF"}
+]);
+
+// ——————————————————————————————————————————————————
+// Acciones - Visualización
+// ——————————————————————————————————————————————————
+
+// AMARILLO para anillo exterior
+action({"yellow_output"}, "d_paint", {"0", "0", "1", "0"});
+action({"-yellow_output"}, "d_paint", {"0", "0", "-1", "0"});
+
+// CYAN para anillo interior
+action({"cyan_output"}, "d_paint", {"0", "0", "1", "1"});
+action({"-cyan_output"}, "d_paint", {"0", "0", "-1", "-1"});
+
+// ——————————————————————————————————————————————————
+// Acciones - Emisión de señales
+// ——————————————————————————————————————————————
+
+// PhlF emite su señal
+action({"phlf"}, "s_emit_signal", {tostring(PhlF), "0.05", "exact"});
+
+// Emisión de señales KAN entre capas
+action({"f_qacr_low"}, "s_emit_signal", {tostring(KAN_Level1), "1.0", "exact"});
+action({"f_qacr_med"}, "s_emit_signal", {tostring(KAN_Level2), "1.0", "exact"});
+action({"f_qacr_high"}, "s_emit_signal", {tostring(KAN_Level3), "1.0", "exact"});
+
+// ——————————————————————————————————————————————————
+// Acciones - Detección con Quorum Sensing
+// ——————————————————————————————————————————————————
+
+// Detección de QacR en diferentes niveles
+action({}, "s_get_QS", {tostring(QacR), ">", "0.001", "qacr"});
+action({}, "s_get_QS", {tostring(QacR), ">", "0.5", "qacr_high"});
+action({}, "s_get_QS", {tostring(PhlF), ">", "0.5", "phlf"});
+
+// ——————————————————————————————————————————————————
+// Acciones - Transiciones y conjugaciones KAN
+// ——————————————————————————————————————————————————
+
+// Propagación de estados
+action({"kan_receptor"}, "conjugate", {"p_functions", "0.5"});
+action({"kan_processor", "f_qacr_low"}, "conjugate", {"p_nodes", "0.5"});
+action({"kan_processor", "f_qacr_med"}, "conjugate", {"p_nodes", "0.5"});
+action({"kan_emitter", "node_yellow"}, "conjugate", {"p_outputs", "0.5"});
+action({"kan_emitter", "node_cyan"}, "conjugate", {"p_outputs", "0.5"});
+
+// Control de crecimiento
+action({}, "set_growth_rate", {"0.017"});
+
+// ——————————————————————————————————————————————————
+// Programa
+// ——————————————————————————————————————————————————
+
+program p() :=
+{
+    skip();
+};
+
+// ——————————————————————————————————————————————————
+// Programa principal
+// ——————————————————————————————————————————————————
+
+program main() :=
+{
+    true :
+    {
+        t := t + dt;
+        dump_multiple(fp, {"yellow_output"}, {"cyan_output"}, {"f_qacr_low"}, 
+                          {"f_qacr_med"}, {"f_qacr_high"});
+    }
+    
+    // Señal QacR en el centro
+    t > 1 :
+    {
+        s_set_signal(QacR, 30, 0.0, 0.0);
+    }
+    
+    // Inicialización
+    c_ecolis(3000, 0, 0, 250, {"p_functions", "p_nodes", "p_outputs", "p_states", "p_aux"}, program p());
+};

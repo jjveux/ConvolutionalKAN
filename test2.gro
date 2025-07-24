@@ -1,0 +1,81 @@
+include gro
+
+// ——————————————————————————————————————————————————
+// 1) Parámetros globales y módulo de señales
+// ——————————————————————————————————————————————————
+set ( "dt", 0.1 );
+set ( "population_max", 5000000);
+
+// Señales (elimina grid si no necesitas difusión real)
+set ( "signals", 0.0 );    // desactiva el módulo de señales para simplificar
+
+// ——————————————————————————————————————————————————
+// 2) Declaración de operones
+// ——————————————————————————————————————————————————
+genes([ name := "GeneA",
+        proteins := {"ProtA"},
+        promoter := [ function := "YES", transcription_factors := {} ],
+        prot_act_times := [ times := {1.0}, variabilities := {0.1} ],
+        prot_deg_times  := [ times := {5.0}, variabilities := {0.5} ] ]);
+
+genes([ name := "GeneC",
+        proteins := {"ProtC"},
+        promoter := [ function := "AND", transcription_factors := {"ProtA"} ],
+        prot_act_times := [ times := {1.0}, variabilities := {0.1} ],
+        prot_deg_times  := [ times := {5.0}, variabilities := {0.5} ] ]);
+
+genes([ name := "GeneE",
+        proteins := {"ProtE"},
+        promoter := [ function := "OR", transcription_factors := {"ProtC"} ],
+        prot_act_times := [ times := {1.0}, variabilities := {0.1} ],
+        prot_deg_times  := [ times := {5.0}, variabilities := {0.5} ] ]);
+
+// ——————————————————————————————————————————————————
+// 3) Ensamblaje de plásmidos
+// ——————————————————————————————————————————————————
+plasmids_genes([ pSimple := {"GeneA","GeneC","GeneE"} ]);
+
+// ——————————————————————————————————————————————————
+// 4) Variables globales y archivo
+// ——————————————————————————————————————————————————
+t        := 0;
+nextDump := 0.0;
+dumpStep := 2.0;                  // cada 2 unidades de tiempo
+fp       := fopen( "light.csv", "w" );
+fprint( fp, "time,ProtA,ProtC,ProtE\n" );
+
+// ——————————————————————————————————————————————————
+// 5) Programa celular: volcado cada dumpStep
+// ——————————————————————————————————————————————————
+program cell() :=
+{
+    t >= nextDump :
+    {
+        dump_multiple( fp, {"ProtA","ProtC","ProtE"} );
+        nextDump := nextDump + dumpStep;
+    }
+};
+
+// ——————————————————————————————————————————————————
+// 6) Programa principal
+// ——————————————————————————————————————————————————
+program main() :=
+{
+    // Inocular y disparar señal solo al inicio
+    t = 0 :
+    {
+        c_ecolis( 50, 0, 0, 100, {"pSimple"}, program cell() );
+    }
+
+    // Avanzar el tiempo
+    true :
+    {
+        t := t + dt;
+    }
+
+    // Parar tras 5000 unidades de tiempo
+    t > 5000 :
+    {
+        stop();
+    }
+};
